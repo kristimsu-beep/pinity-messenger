@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#171820">
+  <title>Pinity — Chat beyond limits</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+  <section id="auth-screen" class="auth-screen">
+    <div class="auth-art">
+      <div class="orb orb-one"></div><div class="orb orb-two"></div>
+      <div class="brand brand-large"><span class="brand-mark">p</span><span>Pinity</span></div>
+      <div class="auth-copy"><div class="eyebrow">YOUR PEOPLE. YOUR SPACE.</div><h1>Where every<br><span>connection</span> matters.</h1><p>Сообщества, разговоры и идеи — в одном месте.</p></div>
+      <div class="art-orbit orbit-a"></div><div class="art-orbit orbit-b"></div>
+      <div class="floating-chip chip-a">✦ Your space</div><div class="floating-chip chip-b">● Always connected</div>
+    </div>
+    <div class="auth-panel">
+      <div class="auth-mobile-brand brand"><span class="brand-mark">p</span><span>Pinity</span></div>
+      <div class="auth-card">
+        <div class="auth-heading"><h2 id="auth-title">Рады видеть тебя!</h2><p id="auth-subtitle">Войди, чтобы продолжить общение.</p></div>
+        <form id="auth-form">
+          <label>Имя пользователя<input id="auth-username" autocomplete="username" minlength="3" maxlength="24" placeholder="например, neonfox" required></label>
+          <label id="display-name-wrap" class="hidden">Отображаемое имя<input id="auth-display-name" maxlength="40" placeholder="Как тебя называть?"></label>
+          <label>Пароль<input id="auth-password" type="password" autocomplete="current-password" minlength="8" placeholder="Не менее 8 символов" required></label>
+          <button id="auth-submit" class="primary-btn full-btn" type="submit">Войти <span>→</span></button>
+        </form>
+        <p class="auth-switch"><span id="auth-switch-text">Впервые в Pinity?</span> <button id="auth-switch" class="text-btn">Создать аккаунт</button></p>
+        <div class="auth-legal">Продолжая, ты соглашаешься соблюдать правила сообщества Pinity.</div>
+      </div>
+    </div>
+  </section>
+
+  <main id="app" class="app-shell hidden">
+    <aside class="server-rail">
+      <button class="rail-home active" title="Главная">p</button><div class="rail-separator"></div>
+      <div id="server-icons" class="server-icons"></div>
+      <button class="rail-add" id="create-server-btn" title="Создать сервер">＋</button>
+      <button class="rail-discover" id="discover-btn" title="Поиск людей">⌕</button>
+      <div class="rail-bottom"><button title="Загрузить позже: голосовые комнаты">♫</button></div>
+    </aside>
+    <aside class="side-panel">
+      <div class="workspace-top"><div><div class="workspace-name">Pinity <span class="verified">✦</span></div><div class="workspace-subtitle">ТВОЁ ЦИФРОВОЕ ПРОСТРАНСТВО</div></div><button id="workspace-menu" class="icon-btn" title="Меню">⌄</button></div>
+      <div class="side-search"><span>⌕</span><input id="side-search" placeholder="Найти беседу..."><kbd>⌘ K</kbd></div>
+      <button class="nav-item selected" id="home-nav"><span>◈</span> Сообщения <span class="nav-count">1</span></button>
+      <button class="nav-item" id="friends-nav"><span>♙</span> Контакты <span class="nav-arrow">↗</span></button>
+      <div class="section-head"><span>ТВОИ ДИАЛОГИ</span><button id="new-chat-btn" title="Новый диалог">＋</button></div>
+      <div id="dm-list" class="dm-list"></div>
+      <div class="side-spacer"></div>
+      <div id="voice-status" class="voice-status hidden"><span class="voice-pulse"></span><div><b>Голосовая комната</b><small>Голосовые функции скоро</small></div><button id="leave-voice">×</button></div>
+      <div class="user-bar"><button id="my-profile-avatar" class="avatar avatar-me">P</button><button id="my-profile" class="user-info"><b id="my-display-name">Пользователь</b><small id="my-username">@username</small></button><span class="online-dot"></span><button id="settings-btn" class="icon-btn" title="Настройки профиля">⚙</button><button id="logout-btn" class="icon-btn" title="Выйти">⇥</button></div>
+    </aside>
+
+    <section class="chat-panel">
+      <header class="chat-header"><div class="chat-title-wrap"><div id="chat-avatar" class="avatar avatar-bot">✦</div><div><div class="chat-title" id="chat-title">Pinity AI <span class="bot-tag">BOT</span></div><div class="chat-subtitle" id="chat-subtitle"><span class="status-dot"></span> Всегда рядом</div></div></div><div class="header-actions"><button class="icon-btn" id="search-chat-btn" title="Поиск">⌕</button><button class="icon-btn" id="pin-btn" title="Закреплённые сообщения">♧</button><button class="icon-btn" id="members-btn" title="Участники">♙</button><div class="header-divider"></div><button class="icon-btn" id="help-btn" title="О Pinity">?</button></div></header>
+      <div id="search-strip" class="search-strip hidden"><input id="message-search" placeholder="Поиск по сообщениям..."><button id="close-search">×</button></div>
+      <div id="messages" class="messages"><div class="welcome-card"><div class="welcome-spark">✦</div><div class="welcome-eyebrow">A LITTLE MAGIC, EVERY DAY</div><h2>Это твой уголок<br>в <span>Pinity.</span></h2><p>Начни разговор — с другом или с Pinity AI.</p><button id="welcome-start" class="primary-btn">Начать общение <span>→</span></button></div></div>
+      <div class="composer-wrap"><div id="reply-preview" class="reply-preview hidden"></div><div class="composer"><button id="attach-btn" class="composer-tool" title="Вложения">＋</button><textarea id="message-input" rows="1" placeholder="Напиши что-нибудь..."></textarea><button id="emoji-btn" class="composer-tool" title="Эмодзи">☺</button><button id="image-btn" class="composer-tool" title="Создать изображение с ИИ">✧</button><button id="send-btn" class="send-btn" title="Отправить">↑</button></div><div class="composer-hint"><span><kbd>Enter</kbd> отправить <span class="hint-sep">·</span> <kbd>Shift + Enter</kbd> новая строка</span><span class="powered">MADE FOR YOUR PEOPLE <span>✦</span></span></div></div>
+    </section>
+    <aside id="right-panel" class="right-panel"><div class="right-panel-head">ТВОЁ ПРОСТРАНСТВО</div><div class="profile-banner"></div><div class="profile-card"><div id="profile-avatar-large" class="avatar avatar-large avatar-bot">✦</div><div class="profile-name" id="right-name">Pinity AI</div><div class="profile-handle" id="right-handle">@pinity</div><div class="profile-badges"><span>✦ BOT</span><span>◆ ONLINE</span></div><div class="profile-divider"></div><div class="profile-label">О СЕБЕ</div><p id="right-bio" class="profile-bio">Твой персональный помощник. Идеи, ответы и немного магии.</p><div class="profile-label">БЫСТРЫЕ ДЕЙСТВИЯ</div><button class="quick-action" id="profile-action"><span>♙</span> Открыть профиль <span>→</span></button><button class="quick-action" id="invite-action"><span>↗</span> Пригласить друга <span>→</span></button><div class="right-footer">PINITY <span>✦</span> BUILT FOR CONNECTION</div></div></aside>
+  </main>
+
+  <div id="modal-backdrop" class="modal-backdrop hidden"><section class="modal" role="dialog" aria-modal="true"><button id="modal-close" class="modal-close">×</button><div id="modal-content"></div></section></div>
+  <div id="context-menu" class="context-menu hidden"></div>
+  <input id="file-input" type="file" hidden accept="image/*">
+  <script src="/static/app.js"></script>
+</body>
+</html>
