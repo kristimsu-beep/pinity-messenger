@@ -328,6 +328,11 @@ async def ai_chat(data: AIInput, user=Depends(current_user)):
     database = require_db()
     database.ai_history.insert_one({"user_id": user["_id"], "role": "user", "content": data.message, "created_at": now})
     database.ai_history.insert_one({"user_id": user["_id"], "role": "assistant", "content": answer, "created_at": now})
+    conversation_id = f"{user['_id']}:pinity-ai"
+    database.messages.insert_one({
+        "conversation_id": conversation_id, "sender_id": "pinity-ai",
+        "sender_name": "Pinity AI", "content": answer, "created_at": now
+    })
     return {"reply": answer, "model": model}
 
 @app.post("/api/ai/image")
