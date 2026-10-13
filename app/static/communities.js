@@ -1,6 +1,7 @@
 /* Pinity communities: server rail, channels, invitations and channel chat. */
 (() => {
   const originalSelectConversation = selectConversation;
+  conversationId = function(){if(state.activeServer&&state.activeChannel)return "server:"+state.activeServer+":channel:"+state.activeChannel;if(state.active==="pinity-ai")return state.user.id+":pinity-ai";return [state.user.id,state.active].sort().join(":");};
   const originalShowApp = showApp;
   async function loadServers(){try{const data=await api("/api/servers");state.servers=data.servers||[];renderServers();}catch(error){console.error("Не удалось загрузить сообщества:",error);}}
   function renderServers(){const host=$("server-icons");if(!host)return;host.innerHTML=(state.servers||[]).map(server=>{const icon=server.icon_url?'<img alt="" src="'+escapeHtml(server.icon_url)+'">':escapeHtml((server.name||"S").slice(0,2).toUpperCase());return '<button class="server-icon '+(server.id===state.activeServer?"active":"")+'" data-server="'+escapeHtml(server.id)+'" title="'+escapeHtml(server.name)+'">'+icon+'</button>';}).join("");host.querySelectorAll("[data-server]").forEach(button=>button.onclick=()=>selectServer(button.dataset.server));}
