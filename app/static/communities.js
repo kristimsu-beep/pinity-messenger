@@ -22,5 +22,6 @@
   $("workspace-menu").onclick=()=>showContext(240,80,[{label:"Создать сообщество",fn:openCreateServer},{label:"Создать канал",fn:openCreateChannel},{label:"Пригласить в сообщество",fn:inviteToServer},{label:"Найти людей",fn:openSearch},{label:"Мой профиль",fn:()=>openProfile("me")}]);
   $("invite-action").onclick=()=>state.activeServer?inviteToServer():copyText(location.origin);
   $("members-btn").onclick=()=>{const server=state.servers.find(item=>item.id===state.activeServer);toast(server?(server.member_count||1)+" участников · роль: "+(server.role||"member"):"Открой сообщество, чтобы посмотреть участников.");};
+  if(state.user){loadServers().then(handleInvite);}
   window.pinityCommunities={loadServers,selectServer,selectChannel};
 })();
