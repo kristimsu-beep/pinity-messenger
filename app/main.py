@@ -565,7 +565,7 @@ def get_server_invite(
         code = secrets.token_urlsafe(9)
         database.servers.update_one(
             {"_id": server["_id"]},
-            {"$addToSet": {"member_ids": user_id}}
+            {"$set": {"invite_code": code}}
         )
 
     return {"code": code, "url": f"/?invite={code}"}
@@ -591,10 +591,7 @@ def join_server(
 
     database.servers.update_one(
         {"_id": server["_id"]},
-        {
-            "$addToSet": {"member_ids": user_id},
-            "$pull": {"_unused": "__never__"}
-        }
+        {"$addToSet": {"member_ids": user_id}}
     )
 
     # Не перезаписываем существующую роль участника.
