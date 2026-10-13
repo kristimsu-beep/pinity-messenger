@@ -37,7 +37,7 @@
 
   <main id="app" class="app-shell hidden">
     <aside class="server-rail">
-      <button class="rail-home active" title="Главная">p</button><div class="rail-separator"></div>
+      <button id="rail-home" class="rail-home active" title="Главная">p</button><div class="rail-separator"></div>
       <div id="server-icons" class="server-icons"></div>
       <button class="rail-add" id="create-server-btn" title="Создать сервер">＋</button>
       <button class="rail-discover" id="discover-btn" title="Поиск людей">⌕</button>
@@ -45,12 +45,13 @@
     </aside>
     <aside class="side-panel">
       <div class="workspace-top"><div><div class="workspace-name">Pinity <span class="verified">✦</span></div><div class="workspace-subtitle">ТВОЁ ЦИФРОВОЕ ПРОСТРАНСТВО</div></div><button id="workspace-menu" class="icon-btn" title="Меню">⌄</button></div>
-      <div class="side-search"><span>⌕</span><input id="side-search" placeholder="Найти беседу..."><kbd>⌘ K</kbd></div>
-      <button class="nav-item selected" id="home-nav"><span>◈</span> Сообщения <span class="nav-count">1</span></button>
-      <button class="nav-item" id="friends-nav"><span>♙</span> Контакты <span class="nav-arrow">↗</span></button>
-      <div class="section-head"><span>ТВОИ ДИАЛОГИ</span><button id="new-chat-btn" title="Новый диалог">＋</button></div>
-      <div id="dm-list" class="dm-list"></div>
-      <div class="side-spacer"></div>
+      <div class="side-search dm-view"><span>⌕</span><input id="side-search" placeholder="Найти беседу..."><kbd>⌘ K</kbd></div>
+      <button class="nav-item selected dm-view" id="home-nav"><span>◈</span> Сообщения <span class="nav-count">1</span></button>
+      <button class="nav-item dm-view" id="friends-nav"><span>♙</span> Контакты <span class="nav-arrow">↗</span></button>
+      <div id="server-channel-area" class="server-channel-area hidden"><div class="server-channel-heading"><span>ТЕКСТОВЫЕ КАНАЛЫ</span><button id="channel-create-btn" title="Создать канал">＋</button></div><div id="channel-list" class="channel-list"></div><div class="server-channel-footer"><button id="server-invite-btn">↗ Пригласить участников</button></div></div>
+      <div id="dm-section-head" class="section-head dm-view"><span>ТВОИ ДИАЛОГИ</span><button id="new-chat-btn" title="Новый диалог">＋</button></div>
+      <div id="dm-list" class="dm-list dm-view"></div>
+      <div id="side-spacer" class="side-spacer"></div>
       <div id="voice-status" class="voice-status hidden"><span class="voice-pulse"></span><div><b>Голосовая комната</b><small>Голосовые функции скоро</small></div><button id="leave-voice">×</button></div>
       <div class="user-bar"><button id="my-profile-avatar" class="avatar avatar-me">P</button><button id="my-profile" class="user-info"><b id="my-display-name">Пользователь</b><small id="my-username">@username</small></button><span class="online-dot"></span><button id="settings-btn" class="icon-btn" title="Настройки профиля">⚙</button><button id="logout-btn" class="icon-btn" title="Выйти">⇥</button></div>
     </aside>
@@ -68,5 +69,6 @@
   <div id="context-menu" class="context-menu hidden"></div>
   <input id="file-input" type="file" hidden accept="image/*">
   <script src="/static/app.js"></script>
+  <script src="/static/communities.js"></script>
 </body>
 </html>
