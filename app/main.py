@@ -43,12 +43,88 @@ if MONGODB_URI:
         db.messages.create_index([("conversation_id", 1), ("created_at", -1)])
         db.contacts.create_index([("owner_id", 1), ("contact_id", 1)], unique=True)
         db.sessions.create_index("expires_at", expireAfterSeconds=0)
+        db.servers.create_index("member_ids")
+        db.servers.create_index("invite_code", unique=True, sparse=True)
+        db.server_channels.create_index(
+            [("server_id", 1), ("position", 1)]
+        )
+        db.server_messages.create_index(
+            [("channel_id", 1), ("created_at", -1)]
+        )
     except Exception as exc:
         print(f"MongoDB startup check failed: {exc}")
         db = None
 
 # In-memory sockets are only for live delivery. Messages are persisted in MongoDB.
 active_sockets: dict[str, set[WebSocket]] = {}
+
+def get_server_member(database, server_id: str, user_id: str):
+    server = database.servers.find_one({
+        "_id": server_id,
+        "member_ids": user_id
+    })
+
+    if not server:
+        raise HTTPException(
+            status_code=403,
+            detail="You are not a member of this server."
+        )
+
+    member = next(
+        (
+            item for item in server.get("members", [])
+            if item.get("user_id") == user_id
+        ),
+        None
+    )
+
+    return server, member
+
+
+def require_server_admin(database, server_id: str, user_id: str):
+    server, member = get_server_member(
+        database, server_id, user_id
+    )
+
+    if not member or member.get("role") not in {"owner", "admin"}:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the server owner or an admin can do this."
+        )
+
+    return server
+
+
+def public_server(server):
+    return {
+        "id": server["_id"],
+        "name": server["name"],
+        "icon_url": server.get("icon_url", ""),
+        "owner_id": server["owner_id"],
+        "member_count": len(server.get("member_ids", [])),
+        "role": next(
+            (
+                member["role"]
+                for member in server.get("members", [])
+                if member.get("user_id") == server.get("_current_user_id")
+            ),
+            "member"
+        )
+    }
+
+
+def public_channel(channel):
+    return {
+        "id": channel["_id"],
+        "server_id": channel["server_id"],
+        "name": channel["name"],
+        "topic": channel.get("topic", ""),
+        "position": channel.get("position", 0)
+    }
+
+
+def server_room(server_id: str, channel_id: str) -> str:
+    return f"server:{server_id}:channel:{channel_id}"
 
 def require_db():
     if db is None:
@@ -104,6 +180,19 @@ class MessageInput(BaseModel):
 class AIInput(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     history: list[dict] = Field(default_factory=list, max_length=20)
+
+class ServerCreateInput(BaseModel):
+    name: str = Field(min_length=2, max_length=60)
+    icon_url: str = Field(default="", max_length=500)
+
+
+class ChannelCreateInput(BaseModel):
+    name: str = Field(min_length=1, max_length=50)
+    topic: str = Field(default="", max_length=200)
+
+
+class ServerMessageInput(BaseModel):
+    content: str = Field(min_length=1, max_length=6000)
 
 @app.get("/")
 def index():
@@ -279,9 +368,40 @@ async def websocket_endpoint(ws: WebSocket, token: str = Query(default=""), conv
         except JWTError:
             await ws.close(code=1008)
             return
-        if not user_id or not conversation_id or user_id not in conversation_id.split(":"):
+
+        if not user_id or not conversation_id:
             await ws.close(code=1008)
             return
+        
+        # Личный диалог: оставляем прежнюю проверку.
+        if not conversation_id.startswith("server:"):
+            if user_id not in conversation_id.split(":"):
+                await ws.close(code=1008)
+                return
+        
+        # Серверный канал: проверяем членство и принадлежность канала серверу.
+        else:
+            parts = conversation_id.split(":")
+            if len(parts) != 4 or parts[0] != "server" or parts[2] != "channel":
+                await ws.close(code=1008)
+                return
+        
+            server_id, channel_id = parts[1], parts[3]
+        
+            try:
+                get_server_member(db, server_id, user_id)
+            except HTTPException:
+                await ws.close(code=1008)
+                return
+        
+            channel = db.server_channels.find_one({
+                "_id": channel_id,
+                "server_id": server_id
+            })
+            if not channel:
+                await ws.close(code=1008)
+                return
+
         active_sockets.setdefault(conversation_id, set()).add(ws)
         await ws.send_json({"type": "ready"})
         while True:
@@ -291,6 +411,304 @@ async def websocket_endpoint(ws: WebSocket, token: str = Query(default=""), conv
         pass
     finally:
         active_sockets.get(conversation_id, set()).discard(ws)
+
+@app.get("/api/servers")
+def list_servers(user=Depends(current_user)):
+    database = require_db()
+    rows = list(
+        database.servers.find(
+            {"member_ids": user["_id"]}
+        ).sort("created_at", DESCENDING)
+    )
+
+    result = []
+    for server in rows:
+        item = public_server(server)
+        item["role"] = next(
+            (
+                member["role"]
+                for member in server.get("members", [])
+                if member.get("user_id") == user["_id"]
+            ),
+            "member"
+        )
+        result.append(item)
+
+    return {"servers": result}
+
+
+@app.post("/api/servers")
+def create_server(
+    data: ServerCreateInput,
+    user=Depends(current_user)
+):
+    database = require_db()
+    name = data.name.strip()
+
+    if len(name) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Server name must contain at least 2 characters."
+        )
+
+    now = datetime.now(timezone.utc)
+    server_id = secrets.token_hex(12)
+
+    server = {
+        "_id": server_id,
+        "name": name,
+        "icon_url": data.icon_url.strip(),
+        "owner_id": user["_id"],
+        "member_ids": [user["_id"]],
+        "members": [{
+            "user_id": user["_id"],
+            "role": "owner",
+            "joined_at": now
+        }],
+        "invite_code": secrets.token_urlsafe(9),
+        "created_at": now
+    }
+
+    database.servers.insert_one(server)
+
+    # Создаём стандартный текстовый канал.
+    channel = {
+        "_id": secrets.token_hex(12),
+        "server_id": server_id,
+        "name": "general",
+        "topic": "Общение участников сервера",
+        "position": 0,
+        "created_at": now,
+        "created_by": user["_id"]
+    }
+    database.server_channels.insert_one(channel)
+
+    result = public_server(server)
+    result["role"] = "owner"
+
+    return {
+        "server": result,
+        "channels": [public_channel(channel)]
+    }
+
+
+@app.get("/api/servers/{server_id}/channels")
+def list_server_channels(
+    server_id: str,
+    user=Depends(current_user)
+):
+    database = require_db()
+    get_server_member(database, server_id, user["_id"])
+
+    channels = list(
+        database.server_channels.find(
+            {"server_id": server_id}
+        ).sort("position", 1)
+    )
+
+    return {"channels": [public_channel(c) for c in channels]}
+
+
+@app.post("/api/servers/{server_id}/channels")
+def create_server_channel(
+    server_id: str,
+    data: ChannelCreateInput,
+    user=Depends(current_user)
+):
+    database = require_db()
+    require_server_admin(database, server_id, user["_id"])
+
+    name = data.name.strip().lower()
+    if not name:
+        raise HTTPException(
+            status_code=400,
+            detail="Channel name cannot be empty."
+        )
+
+    # Разрешаем простые имена каналов: general, game-chat и т. п.
+    if not re.fullmatch(r"[a-z0-9_-]{1,50}", name):
+        raise HTTPException(
+            status_code=400,
+            detail="Use English letters, numbers, hyphens or underscores."
+        )
+
+    now = datetime.now(timezone.utc)
+    channel = {
+        "_id": secrets.token_hex(12),
+        "server_id": server_id,
+        "name": name,
+        "topic": data.topic.strip(),
+        "position": database.server_channels.count_documents(
+            {"server_id": server_id}
+        ),
+        "created_at": now,
+        "created_by": user["_id"]
+    }
+
+    database.server_channels.insert_one(channel)
+    return {"channel": public_channel(channel)}
+
+
+@app.get("/api/servers/{server_id}/invite")
+def get_server_invite(
+    server_id: str,
+    user=Depends(current_user)
+):
+    database = require_db()
+    server, _ = get_server_member(
+        database, server_id, user["_id"]
+    )
+
+    # Пока ссылку может получить любой участник сервера.
+    code = server.get("invite_code")
+    if not code:
+        code = secrets.token_urlsafe(9)
+        database.servers.update_one(
+            {"_id": server["_id"]},
+            {"$addToSet": {"member_ids": user_id}}
+        )
+
+    return {"code": code, "url": f"/?invite={code}"}
+
+
+@app.post("/api/servers/join/{invite_code}")
+def join_server(
+    invite_code: str,
+    user=Depends(current_user)
+):
+    database = require_db()
+    server = database.servers.find_one(
+        {"invite_code": invite_code}
+    )
+
+    if not server:
+        raise HTTPException(
+            status_code=404,
+            detail="Invite not found or expired."
+        )
+
+    user_id = user["_id"]
+
+    database.servers.update_one(
+        {"_id": server["_id"]},
+        {
+            "$addToSet": {"member_ids": user_id},
+            "$pull": {"_unused": "__never__"}
+        }
+    )
+
+    # Не перезаписываем существующую роль участника.
+    database.servers.update_one(
+        {
+            "_id": server["_id"],
+            "members.user_id": {"$ne": user_id}
+        },
+        {
+            "$push": {
+                "members": {
+                    "user_id": user_id,
+                    "role": "member",
+                    "joined_at": datetime.now(timezone.utc)
+                }
+            }
+        }
+    )
+
+    return {
+        "ok": True,
+        "server_id": server["_id"],
+        "name": server["name"]
+    }
+
+
+@app.get("/api/servers/{server_id}/channels/{channel_id}/messages")
+def get_server_messages(
+    server_id: str,
+    channel_id: str,
+    user=Depends(current_user)
+):
+    database = require_db()
+    get_server_member(database, server_id, user["_id"])
+
+    channel = database.server_channels.find_one({
+        "_id": channel_id,
+        "server_id": server_id
+    })
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found.")
+
+    rows = list(
+        database.server_messages.find({
+            "server_id": server_id,
+            "channel_id": channel_id
+        }).sort("created_at", DESCENDING).limit(60)
+    )
+    rows.reverse()
+
+    return {
+        "messages": [
+            {
+                "id": str(m["_id"]),
+                "server_id": m["server_id"],
+                "channel_id": m["channel_id"],
+                "sender_id": m["sender_id"],
+                "sender_name": m["sender_name"],
+                "content": m["content"],
+                "created_at": m["created_at"].isoformat()
+            }
+            for m in rows
+        ]
+    }
+
+
+@app.post("/api/servers/{server_id}/channels/{channel_id}/messages")
+async def send_server_message(
+    server_id: str,
+    channel_id: str,
+    data: ServerMessageInput,
+    user=Depends(current_user)
+):
+    database = require_db()
+    get_server_member(database, server_id, user["_id"])
+
+    channel = database.server_channels.find_one({
+        "_id": channel_id,
+        "server_id": server_id
+    })
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found.")
+
+    content = data.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+
+    now = datetime.now(timezone.utc)
+    message = {
+        "server_id": server_id,
+        "channel_id": channel_id,
+        "sender_id": user["_id"],
+        "sender_name": user.get("display_name") or user["username"],
+        "content": content,
+        "created_at": now
+    }
+
+    result = database.server_messages.insert_one(message)
+    response = {
+        "id": str(result.inserted_id),
+        "server_id": server_id,
+        "channel_id": channel_id,
+        "sender_id": user["_id"],
+        "sender_name": message["sender_name"],
+        "content": content,
+        "created_at": now.isoformat()
+    }
+
+    await broadcast(
+        server_room(server_id, channel_id),
+        {"type": "server_message", "message": response}
+    )
+
+    return response
 
 @app.post("/api/ai/chat")
 async def ai_chat(data: AIInput, user=Depends(current_user)):
