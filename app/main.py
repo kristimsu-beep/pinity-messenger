@@ -1,3 +1,4 @@
+import base64
 import os
 import re
 import secrets
@@ -348,10 +349,54 @@ async def ai_image(data: AIInput, user=Depends(current_user)):
     if response.status_code >= 400:
         print(f"Cloudflare image error {response.status_code}: {response.text[:500]}")
         raise HTTPException(status_code=502, detail="Image generation failed. Check Cloudflare model access and token permissions.")
+
     content_type = response.headers.get("content-type", "")
-    if "image/" not in content_type:
+    from fastapi.responses import Response
+
+    # Некоторые модели возвращают изображение напрямую.
+    if "image/" in content_type:
+        return Response(
+            content=response.content,
+            media_type=content_type,
+            headers={"Cache-Control": "no-store"}
+        )
+
+    # Другие возвращают JSON с изображением в Base64.
+    try:
         result = response.json()
-        raise HTTPException(status_code=502, detail=result.get("errors", [{"message": "Unexpected image response"}])[0].get("message", "Unexpected image response"))
+    except ValueError:
+        raise HTTPException(
+            status_code=502,
+            detail="Cloudflare returned an invalid image response."
+        )
+
+    image_base64 = (result.get("result") or {}).get("image")
+
+    if isinstance(image_base64, str) and image_base64:
+        try:
+            image_bytes = base64.b64decode(image_base64, validate=True)
+        except (ValueError, TypeError):
+            raise HTTPException(
+                status_code=502,
+                detail="Cloudflare returned invalid Base64 image data."
+            )
+
+        return Response(
+            content=image_bytes,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "no-store"}
+        )
+
+    errors = result.get("errors") or []
+    error_message = (
+        errors[0].get("message")
+        if errors and isinstance(errors[0], dict)
+        else result.get("message", "Cloudflare did not return an image.")
+    )
+
+    print(f"Cloudflare image response: {str(result)[:1000]}")
+    raise HTTPException(status_code=502, detail=error_message)
+
     # Return the generated image directly; frontend can display it as a blob.
     from fastapi.responses import Response
     return Response(content=response.content, media_type=content_type, headers={"Cache-Control": "no-store"})
